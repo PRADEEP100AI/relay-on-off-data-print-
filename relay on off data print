@@ -1,0 +1,120 @@
+#include <Wire.h>  // I2C communication library
+#include <Adafruit_GFX.h>  // Graphics library
+#include <Adafruit_SSD1306.h>  // OLED display library
+
+#define Relay 11  // Define relay pin
+#define PB1 2      // Button 1 (Relay control)
+#define PB2 3      // Button 2 (Enable/Disable control)
+
+boolean statusRelay = false;  // Relay state (false = OFF, true = ON)
+boolean relayEnabled = true;  // Relay enable/disable flag
+unsigned long lastDebounceTimePB1 = 0;  // Debounce time for PB1
+unsigned long lastDebounceTimePB2 = 0;  // Debounce time for PB2
+unsigned long debounceDelay = 50;  // debounce delay in milliseconds
+
+int relayOnCount = 0;  // Counter for relay on events
+int relayOffCount = 0;  // Counter for relay off events
+
+// OLED display settings
+#define SCREEN_WIDTH 128  // OLED display width
+#define SCREEN_HEIGHT 64  // OLED display height
+#define OLED_RESET    -1  // Reset pin (if required, else -1)
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+void setup() {
+  // Initialize serial communication
+  Serial.begin(9600);
+
+  // Initialize Relay Pin
+  pinMode(Relay, OUTPUT);
+  pinMode(PB1, INPUT_PULLUP);  // Set PB1 as input with internal pull-up resistor
+  pinMode(PB2, INPUT_PULLUP);  // Set PB2 as input with internal pull-up resistor
+
+  // Initialize OLED display
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {  // I2C address: 0x3C or 0x3D
+    Serial.println(F("SSD1306 allocation failed"));
+    for (;;);  // Halt if OLED is not connected properly
+  }
+
+  display.clearDisplay();  // Clear the display buffer
+  display.setTextSize(1);  // Set text size
+  display.setTextColor(SSD1306_WHITE);  // Set text color to white
+  display.setCursor(0, 0);  // Set text cursor position
+}
+
+void loop() {
+  // Read PB1 with debouncing (Relay control)
+  int readingPB1 = digitalRead(PB1);
+  if (readingPB1 == LOW) {  // Button pressed (since using INPUT_PULLUP)
+    if ((millis() - lastDebounceTimePB1) > debounceDelay) {  // If debounce time passed
+      if (relayEnabled) {  // Only toggle relay if it is enabled
+        statusRelay = !statusRelay;  // Toggle relay state
+        digitalWrite(Relay, statusRelay);  // Update Relay state
+
+        // Update counts and OLED display
+        display.clearDisplay();  // Clear the OLED display
+        display.setCursor(0, 0);  // Reset cursor position
+        if (statusRelay) {
+          relayOnCount++;  // Increment on count
+          display.println("Relay: ON");
+        } else {
+          relayOffCount++;  // Increment off count
+          display.println("Relay: OFF");
+        }
+        // Print relay on/off counts
+        display.print("On Count: ");
+        display.println(relayOnCount);
+        display.print("Off Count: ");
+        display.println(relayOffCount);
+
+        display.display();  // Update the OLED display
+      }
+      lastDebounceTimePB1 = millis();  // Update debounce time
+    }
+  }
+
+  // Read PB2 with debouncing (Enable/Disable control)
+  int readingPB2 = digitalRead(PB2);
+  if (readingPB2 == LOW) {  // Button pressed (since using INPUT_PULLUP)
+    if ((millis() - lastDebounceTimePB2) > debounceDelay) {  // If debounce time passed
+      relayEnabled = !relayEnabled;  // Toggle relay enable/disable
+      display.clearDisplay();  // Clear the OLED display
+      display.setCursor(0, 0);  // Reset cursor position
+      if (relayEnabled) {
+        display.println("Relay: ENABLED");
+      } else {
+        display.println("Relay: DISABLED");
+      }
+      display.display();  // Update the OLED display
+      lastDebounceTimePB2 = millis();  // Update debounce time
+    }
+  }
+
+  // If relay is enabled, toggle the relay every 1 second
+  if (relayEnabled) {
+    static unsigned long lastToggleTime = 0;  // To track time for toggling
+    if (millis() - lastToggleTime >= 50) {  // 1 second delay
+      statusRelay = !statusRelay;  // Toggle relay state
+      digitalWrite(Relay, statusRelay);  // Update Relay state
+
+      // Update counts and OLED display
+      display.clearDisplay();  // Clear the OLED display
+      display.setCursor(0, 0);  // Reset cursor position
+      if (statusRelay) {
+        relayOnCount++;  // Increment on count
+        display.println("Relay: ON");
+      } else {
+        relayOffCount++;  // Increment off count
+        display.println("Relay: OFF");
+      }
+      // Print relay on/off counts
+      display.print("On Count: ");
+      display.println(relayOnCount);
+      display.print("Off Count: ");
+      display.println(relayOffCount);
+
+      display.display();  // Update the OLED display
+      lastToggleTime = millis();  // Update the last toggle time
+    }
+  }
+}
